@@ -1,0 +1,100 @@
+//************************************************************************************************// 
+//                            TIPOS DE FILTROS EN ARDUINO (AVANZADO)                              //
+//                     FILTRO DIGITAL DE RESPUESTA FINITA AL IMPULSO (FIR)                        //
+//                                              UEM                                               //
+//                     Canal de YouTube: https://www.youtube.com/@UnEstudianteMas_                //
+//************************************************************************************************//
+ 
+const long ts = 10000; // Periodo de muestreo en micro segundos
+unsigned long tAnterior = 0; // Tiempo anterior para delay no bloqueante y de presición
+ 
+const int OrdenFiltro = 21; // Orden del filtro calculado
+ 
+double yk = 0.0; // Iniciar salida
+ 
+double x[OrdenFiltro]; // Vector de entradas (debe ser del mismo tamaño del orden del filtro)
+ 
+// x[0] es la entrada actual, x[1] la anterior, x[2] la 2 veces anterior, etc.
+ 
+const double 
+b[OrdenFiltro] = { // Vector de coeficientes dados por la calculadora (del mismo tamaño del orden del filtro)
+  -7.79634367e-18, 
+  -2.07886508e-02, 
+  -3.78413364e-02,
+  -4.32472416e-02,
+  -3.11829761e-02,  
+  7.79634367e-18,  
+  4.67744642e-02,  
+  1.00910230e-01,
+  1.51365346e-01,  
+  1.87097857e-01, 
+  2.00000000e-01,  
+  1.87097857e-01,
+  1.51365346e-01,  
+  1.00910230e-01,  
+  4.67744642e-02,  
+  7.79634367e-18,
+  -3.11829761e-02, 
+  -4.32472416e-02, 
+  -3.78413364e-02, 
+  -2.07886508e-02,
+  -7.79634367e-18
+};
+ 
+int k = 0; // Índice para bucle for
+ 
+const int entrada = 25;
+ 
+void setup() {
+ 
+  Serial.begin(115200);
+ 
+  // Iniciamos las entradas con el valor actual del ADC
+  x[0] = analogRead(entrada);
+  yk = x[0];
+  
+  for(k = 1; k < OrdenFiltro; k++)
+  {
+    x[k] = x[0];
+  }
+ 
+  // Iniciar el tiempo anterior
+  tAnterior = micros();
+}
+ 
+void loop() {
+ 
+  if(micros() - tAnterior >= ts) // Delay no bloqueante
+  {
+    // Leer dato actual x_0
+    x[0] = analogRead(entrada);
+ 
+    // Aplicar ecuación de diferencias | yk = Σ b_k * x_n - k |
+    for(k = 0; k < OrdenFiltro; k++)
+    {
+      yk += b[k] * x[k]; 
+ 
+      // Equivalente a 
+      // yk = yk + ( b[k] * x[k] )
+    }
+ 
+    // Actualizar las entradas anteriores
+    for(k = OrdenFiltro - 1; k > 0; k--)
+    {
+      x[k] = x[k - 1];
+    }     
+
+    Serial.out
+    Serial.print((int) yk);
+    Serial.print(",");
+    Serial.println((int) x[0]);
+      
+    // Reiniciamos el valor de la salida para recalcular el filtro
+    yk = 0.0;
+ 
+    // Actualizar el tiempo anterior
+    tAnterior = micros();
+  }
+ 
+}
+ 
