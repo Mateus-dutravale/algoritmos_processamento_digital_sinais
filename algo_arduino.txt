@@ -98,3 +98,74 @@ void loop() {
  
 }
  
+
+
+
+========================================================================
+=====================esp32==============================================
+
+// Exemplo: amostrar, filtrar FIR e sair no DAC (ESP32, Arduino IDE)
+
+const int ADC_PIN = 34;      // entrada analógica (ADC1)
+const int DAC_PIN = 25;      // saída analógica (DAC1)
+const unsigned long Fs = 4000; // taxa de amostragem desejada (Hz)
+const unsigned long Ts_us = 1000000UL / Fs;
+
+// ---- coeficientes FIR (exemplo) ----
+// Substitua por seus coeficientes 'b' e ajuste N
+const int N = 11;
+float b[N] = { 0.01, 0.02, 0.05, 0.12, 0.2, 0.24, 0.2, 0.12, 0.05, 0.02, 0.01 };
+
+// buffer circular
+float xbuf[N];
+int idx = 0;
+
+void setup() {
+  Serial.begin(115200);
+  analogSetPinAttenuation(ADC_PIN, ADC_11db); // ajustar conforme tensão de entrada
+  // analogReadResolution não existe em todas as cores; ADC retorna 0..4095 por padrão
+  pinMode(DAC_PIN, OUTPUT);
+  for (int i=0;i<N;i++) xbuf[i]=0.0;
+}
+
+void loop() {
+  static unsigned long next_micro = micros();
+  unsigned long now = micros();
+  if ((long)(now - next_micro) >= 0) {
+    // leu ADC
+    int raw = analogRead(ADC_PIN); // 0..4095
+    // converte para float centrado (opcional): aqui mantemos 0..1
+    float xn = (float)raw / 4095.0f; // 0..1
+    // opcional: remover DC se quiser sinal bipolar: xn = (raw/2047.5f)-1.0f
+
+    // inserir no buffer circular (novo na posição idx)
+    xbuf[idx] = xn;
+
+    // calcular saída FIR y[n] = sum_{k=0..N-1} b[k] * x[n-k]
+    float y = 0.0f;
+    int buf_i = idx;
+    for (int k = 0; k < N; ++k) {
+      y += b[k] * xbuf[buf_i];
+      buf_i--;
+      if (buf_i < 0) buf_i = N - 1;
+    }
+
+    // avançar índice circular
+    idx++;
+    if (idx >= N) idx = 0;
+
+    // normalizar/ajustar y para faixa DAC (0..255)
+    // se y está em 0..1, simplesmente:
+    int dacVal = (int)roundf(y * 255.0f);
+    if (dacVal < 0) dacVal = 0;
+    if (dacVal > 255) dacVal = 255;
+
+    dacWrite(DAC_PIN, dacVal);
+
+    // programar próximo instante
+    next_micro += Ts_us;
+    // se atrasou muito, sincroniza:
+    if ((long)(micros() - next_micro) > 100000) next_micro = micros() + Ts_us;
+  }
+  // aqui pode colocar outras tarefas leves
+}
